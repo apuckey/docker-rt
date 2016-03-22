@@ -1,0 +1,16 @@
+#!/bin/sh
+exec 2>&1
+
+set -e
+
+# clear mason cache on startup.
+rm -rf /var/cache/request-tracker4/mason_data
+
+exec /usr/bin/spawn-fcgi \
+  -n \
+  -u www-data \
+  -U www-data \
+  -G www-data \
+  -s /var/run/rt-server.sock \
+  -M 0700 \
+  -- /usr/share/request-tracker4/libexec/rt-server.fcgi

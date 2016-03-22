@@ -1,0 +1,6 @@
+#!/bin/sh
+
+set -e
+
+# Initialise database
+/usr/sbin/rt-setup-database --action upgrade --skip-create

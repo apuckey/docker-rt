@@ -1,4 +1,4 @@
-PATH=/bin:/usr/bin:/opt/rt4/bin
+PATH=/bin:/usr/bin
 LOGFILE=/var/log/procmail/rt.log
 
 #Messages >300000 characters proceed to recipient (unlikely to be spam)

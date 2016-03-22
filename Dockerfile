@@ -1,90 +1,50 @@
-FROM phusion/baseimage:0.9.10
-MAINTAINER Open Knowledge System Administrators
+FROM phusion/baseimage:0.9.17
 
-# Disable SSH
-RUN rm -rf /etc/service/sshd /etc/my_init.d/00_regen_ssh_host_keys.sh
+ADD http://s3-repository.rawideas.com/packages/gpg.key /root/
+RUN echo "deb http://s3-repository.rawideas.com/packages trusty main" > /etc/apt/sources.list.d/rawideas.trusty.list
 
-# Set up APT
-RUN apt-get -q -y update
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-key add /root/gpg.key && \
+      apt-get update && apt-get -q -y install --no-install-recommends \
+      postfix \
+      git \
+      build-essential \
+      nginx-full \
+      request-tracker4 \
+      rt4-fcgi \
+      rt4-db-mysql \
+      spawn-fcgi \
+      procmail \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/tmp/* /tmp/*
 
-# Install required packages
-RUN DEBIAN_FRONTEND=noninteractive apt-get -q -y install \
-  build-essential \
-  cpanminus \
-  git \
-  gnupg \
-  graphviz \
-  libexpat1-dev \
-  libgd2-noxpm-dev \
-  libpq-dev \
-  nginx-light \
-  perl-modules \
-  postfix \
-  procmail \
-  razor \
-  spamassassin \
-  spawn-fcgi
-
-# Set up environment
-ENV PERL_MM_USE_DEFAULT 1
-ENV HOME /root
-ENV RT rt-4.2.4
-ENV RTSRC ${RT}.tar.gz
-
-# Autoconfigure cpan
-RUN echo q | /usr/bin/perl -MCPAN -e shell
-
-# Install RT
-RUN mkdir /src
-ADD http://download.bestpractical.com/pub/rt/release/${RTSRC} /src/${RTSRC}
-RUN tar -C /src -xzpvf /src/${RTSRC}
-RUN ln -s /src/${RT} /src/rt
-RUN cd /src/${RT} && ./configure --with-db-type=Pg --enable-gpg --enable-gd --enable-graphviz
-# Install Capture::Tiny regardless of test failures for now
-RUN cpan -f Capture::Tiny
-RUN make -C /src/${RT} fixdeps
-RUN make -C /src/${RT} testdeps
-RUN make -C /src/${RT} install
 ADD ./scripts/rtcron /usr/bin/rtcron
 ADD ./scripts/rtinit /usr/bin/rtinit
-
-# Add system service config
-ADD ./etc/nginx.conf /etc/nginx/nginx.conf
+ADD ./scripts/rtupgrade /usr/bin/rtupgrade
 ADD ./etc/crontab.root /var/spool/cron/crontabs/root
 
+COPY etc/ /etc/
+COPY RT_SiteConfig.pm /etc/request-tracker4/RT_SiteConfig.pm
+
 # Configure Postfix
-ADD ./etc/postfix /etc/postfix
 RUN chown -R root:root /etc/postfix
 RUN newaliases
 RUN mkdir -m 1777 /var/log/procmail
-ADD ./etc/logrotate.procmail /etc/logrotate.d/procmail
 
-# Build RT and extensions
-ADD ./scripts/installext.sh /src/installext.sh
-RUN /src/installext.sh https://github.com/bestpractical/rt-extension-mergeusers
-RUN /src/installext.sh https://github.com/bestpractical/rt-extension-resetpassword
-RUN /src/installext.sh https://github.com/bestpractical/rt-extension-activityreports
-RUN /src/installext.sh https://github.com/bestpractical/rt-extension-spawnlinkedticketinqueue
-RUN /src/installext.sh https://github.com/bestpractical/rt-extension-commandbymail
-RUN /src/installext.sh https://github.com/bestpractical/rt-extension-repeatticket
-RUN cp /src/rt-extension-repeatticket/bin/rt-repeat-ticket /opt/rt4/sbin
-RUN mkdir -p /opt/rt4/local/html/Callbacks/MyCallbacks/Elements/MakeClicky
-ADD ./misc/MakeClicky /opt/rt4/local/html/Callbacks/MyCallbacks/Elements/MakeClicky/Default
+ADD ./scripts/installext.sh /usr/local/bin/installext.sh
+RUN chmod +x /usr/local/bin/installext.sh
 
-# Configure RT
-ADD ./RT_SiteConfig.pm /opt/rt4/etc/RT_SiteConfig.pm
-RUN mv /opt/rt4/var /data
-RUN ln -s /data /opt/rt4/var
+RUN /usr/local/bin/installext.sh https://github.com/bestpractical/rt-extension-mergeusers
+RUN /usr/local/bin/installext.sh https://github.com/bestpractical/rt-extension-jsgantt
+RUN /usr/local/bin/installext.sh https://github.com/bestpractical/rt-extension-resetpassword
+RUN /usr/local/bin/installext.sh https://github.com/bestpractical/rt-extension-activityreports
+RUN /usr/local/bin/installext.sh https://github.com/bestpractical/rt-extension-spawnlinkedticketinqueue
+RUN /usr/local/bin/installext.sh https://github.com/bestpractical/rt-extension-commandbymail
+RUN /usr/local/bin/installext.sh https://github.com/bestpractical/rt-extension-repeatticket
+RUN cp /usr/src/rt-extension-repeatticket/bin/rt-repeat-ticket /usr/sbin
 
-# Add system services
-RUN mkdir /var/log/rt4 /var/log/spamd
-ADD ./svc /etc/service
-CMD ["/sbin/my_init"]
-
-VOLUME ["/data"]
-EXPOSE 25
+VOLUME ["/var/lib/request-tracker4"]
 EXPOSE 80
+EXPOSE 25
 
-RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# vim:ts=8:noet:
+CMD ["/sbin/my_init"]

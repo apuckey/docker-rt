@@ -3,7 +3,7 @@
 set -eu
 
 REPO=$1
-cd /src
+cd /usr/src
 git clone "$REPO"
 cd "$(basename "$REPO")"
 perl Makefile.PL

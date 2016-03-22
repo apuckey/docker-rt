@@ -1,0 +1,1 @@
+docker create --name request-tracker -p 81:80 -v /opt/rt:/var/lib/request-tracker4 -e WEBDOMAIN=rt.10.1.1.30.xip.io -e WEBPORT=81 -e DATABASE_HOST=10.1.1.10 -e DATABASE_NAME=rt -e DATABASE_USER=root -e DATABASE_PASSWORD=root rawideas/docker-tr:initial
